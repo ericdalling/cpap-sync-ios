@@ -11,5 +11,7 @@ if ! command -v xcodegen >/dev/null || ! xcodegen --version | grep -Fq "$version
 fi
 xcodegen --version | grep -F "$version"
 # Generate an opaque 1024px app icon with system Swift/AppKit (no external tools).
-swift scripts/generate-icon.swift
+if [[ ! -f CPAPSync/Assets.xcassets/AppIcon.appiconset/AppIcon.png ]]; then
+  swift scripts/generate-icon.swift
+fi
 xcodegen generate
