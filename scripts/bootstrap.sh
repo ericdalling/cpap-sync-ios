@@ -10,8 +10,16 @@ if ! command -v xcodegen >/dev/null || ! xcodegen --version | grep -Fq "$version
   export PATH="$tool_dir/xcodegen/bin:$PATH"
 fi
 xcodegen --version | grep -F "$version"
-# Generate an opaque 1024px app icon with system Swift/AppKit (no external tools).
-if [[ ! -f CPAPSync/Assets.xcassets/AppIcon.appiconset/AppIcon.png ]]; then
-  swift scripts/generate-icon.swift
+# Require the approved production artwork; never silently substitute a placeholder.
+icon="CPAPSync/Assets.xcassets/AppIcon.appiconset/AppIcon.png"
+if [[ ! -f "$icon" ]]; then
+  echo "Missing approved AppIcon.png; see docs/app-icon.md" >&2
+  exit 1
+fi
+expected="d9ed953708500f8feae01d4514d13201303b9af203eb7b0e38fada0a4d32baa1"
+actual="$(shasum -a 256 "$icon" | awk '{print $1}')"
+if [[ "$actual" != "$expected" ]]; then
+  echo "App icon differs from approved artwork; see docs/app-icon.md" >&2
+  exit 1
 fi
 xcodegen generate
