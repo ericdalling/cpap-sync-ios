@@ -1,0 +1,9 @@
+# Engineering instructions
+
+- Read the assigned GitHub issue and epic #1 before implementation. Issues own feature requirements; do not duplicate them in docs.
+- Phase 0 precedes CPAP feature development. Keep changes small, focused and testable. Use branches and PRs; link issue numbers, and close only after acceptance criteria are verified.
+- SwiftUI, iOS 17+, Swift concurrency. Favor value types, protocol boundaries and dependency injection when needed; no speculative architecture or dependencies.
+- Use project.yml as the XcodeGen source of truth. Pin tooling; do not edit generated Xcode project files. Run CI and report actual evidence, not assumed success.
+- Never write to the CPAP card. Never commit real patient data, device identifiers, credentials or signing material. Use synthetic fixtures; keep diagnostics sanitized.
+- No external data transmission without explicit user consent. Preserve raw bytes and directory structure when implementing sync.
+- Release secrets are limited to trusted refs; do not run untrusted code with signing credentials. Do not merge or deploy automatically unless authorized.

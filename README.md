@@ -1,2 +1,19 @@
-# cpap-sync-ios
-Native iOS app for wireless CPAP data synchronization
+# CPAP Sync iOS
+
+Local-first wireless CPAP data synchronization. Phase 0 (v0.0.1) is a Hello World delivery skeleton; no CPAP connectivity or therapy data processing is implemented yet.
+
+Specifications and priorities live in [GitHub Issues](https://github.com/ericdalling/cpap-sync-ios/issues/1). See [architecture](docs/architecture.md), [technology ADR](docs/adr/0001-technology-stack.md), and [TestFlight setup](docs/testflight.md).
+
+## Build locally (macOS)
+Install Xcode 26 and XcodeGen 2.44.1. Run:
+```sh
+bash scripts/bootstrap.sh
+xcodebuild -project CPAPSync.xcodeproj -scheme CPAPSync -showdestinations
+xcodebuild -project CPAPSync.xcodeproj -scheme CPAPSync -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath build CODE_SIGNING_ALLOWED=NO test
+```
+The checked-in project.yml is the canonical project definition; generated Xcode files are intentionally ignored. Deployment target is iOS 17. The app displays its bundle version and build number.
+
+## Workflow
+Branch from main, implement a GitHub issue, test, open a PR and link the issue. CI runs unsigned simulator tests; signed releases run independently on trusted main/tag refs after CI succeeds. Never commit credentials or real therapy data.
+
+Phase 0 is complete only when the owner installs the matching TestFlight build on a physical iPhone and a second release verifies distinct build numbering.
