@@ -9,7 +9,7 @@ Install Xcode 26 and XcodeGen 2.44.1. Run:
 ```sh
 bash scripts/bootstrap.sh
 xcodebuild -project CPAPSync.xcodeproj -scheme CPAPSync -showdestinations
-xcodebuild -project CPAPSync.xcodeproj -scheme CPAPSync -destination 'platform=iOS Simulator,name=iPhone 17' -derivedDataPath build CODE_SIGNING_ALLOWED=NO test
+bash scripts/test-ios.sh
 ```
 The checked-in project.yml is the canonical project definition; generated Xcode files are intentionally ignored. Deployment target is iOS 17. The app displays its bundle version and build number.
 
@@ -17,3 +17,5 @@ The checked-in project.yml is the canonical project definition; generated Xcode 
 Branch from main, implement a GitHub issue, test, open a PR and link the issue. CI runs unsigned simulator tests; signed releases run independently on trusted main/tag refs after CI succeeds. Never commit credentials or real therapy data.
 
 Phase 0 is complete only when the owner installs the matching TestFlight build on a physical iPhone and a second release verifies distinct build numbering.
+
+See [CI verification](docs/ci-verification.md) and [ez Share protocol discovery](docs/ezshare-protocol.md). The preferred signing path uses Xcode automatic signing with a team API key on GitHub-hosted macOS; manual signing is a fallback, both still require Apple-side validation.
