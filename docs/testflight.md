@@ -1,19 +1,26 @@
-# TestFlight setup (owner)
+# TestFlight setup from iPhone
 
-This workflow has not yet been validated against Apple credentials. Do not paste secrets into issues, chat, or source files.
+Phase 0 requires an active paid Apple Developer membership. No Apple credentials or actual upload have been tested yet. Do not paste secrets into chat, issues, PRs, or source files.
 
-1. Enroll in Apple Developer Program. Register explicit App ID `com.ericdalling.cpapsync` (if unavailable, change project.yml, release script and Apple record consistently). Create an iOS App Store Connect record with that bundle ID.
-2. Create an Apple Distribution certificate with its private key and an App Store distribution provisioning profile for that App ID. Export the certificate/private key as password-protected PKCS#12. Apple-side certificate creation/export may require access to a Mac or another secure certificate-generation process.
-3. Create an App Store Connect team API key with sufficient upload permissions; download its .p8 once. Keep credentials in secure storage.
-4. In repository Settings → Environments, create `testflight` and restrict deployments to trusted main/release tags where supported. Add environment variable `APPLE_TEAM_ID` and secrets:
-   - IOS_DISTRIBUTION_P12_BASE64 (base64 of p12)
-   - IOS_DISTRIBUTION_P12_PASSWORD
-   - IOS_PROVISIONING_PROFILE_BASE64 (base64 of mobileprovision)
-   - ASC_API_KEY_BASE64 (base64 of p8)
-   - ASC_KEY_ID
-   - ASC_ISSUER_ID
-5. Merge reviewed foundation PR after CI passes. Run Actions → TestFlight → Run workflow on main (or push a reviewed v* tag). The workflow repeats unsigned tests before signing; build number uses run number and attempt. Verify App Store Connect processing and export compliance prompts.
-6. Create internal TestFlight group and add yourself as tester. Install TestFlight on iPhone, accept invitation, install CPAP Sync, verify displayed version/build against Actions run.
-7. Run again to validate a unique build and updated installation. Record evidence in #15 without sensitive screenshots or secrets.
+## Preferred: automatic signing on GitHub's Mac
+1. Complete enrollment and accept required agreements at https://developer.apple.com/account/.
+2. Register explicit App ID `com.ericdalling.cpapsync` at https://developer.apple.com/account/resources/identifiers/list. If unavailable, update all bundle-ID references consistently.
+3. Create the iOS app record in https://appstoreconnect.apple.com/ with that bundle ID and a unique SKU.
+4. Under Users and Access → Integrations → App Store Connect API, request API access if necessary and create a **team** API key with appropriate signing/upload permissions (Admin may be needed for certificate/profile creation). Download its .p8 once; store it securely. Use the least privilege that supports the workflow.
+5. In GitHub repository Settings → Environments, create `testflight`; restrict to trusted main/release tags if supported. Set environment variable APPLE_TEAM_ID and secrets ASC_KEY_ID, ASC_ISSUER_ID, and ASC_API_PRIVATE_KEY (raw complete PEM text from the .p8, including header/footer). Alternatively use ASC_KEY_BASE64 instead of the raw key. For raw text on iPhone, use a trusted local text viewer; do not use an online base64/PEM converter.
+6. If the private repository's plan does not support environment secrets/variables, use repository Actions secrets and variables with the same names, restrict write access and review changes to all workflows. Do not expose secrets to PR jobs.
+7. Leave IOS_SIGNING_MODE unset or set it to automatic. Run Actions → TestFlight → Run workflow on main. It first verifies the commit and runs unsigned tests in a job without signing secrets, then signs and uploads in a separate job.
+8. Verify processing in App Store Connect, answer export compliance according to actual app behavior, add yourself to an internal TestFlight group, install via TestFlight, and confirm the displayed version/build. Repeat deployment to verify build numbers.
 
-Upload success is not equivalent to processed/installed success. If Apple rejects signing, verify team, bundle ID, certificate/profile expiration and matching private key. If encryption compliance is requested, answer based on actual app behavior. Phase 0 stays open until on-device verification.
+Automatic signing with an App Store Connect team API key and xcodebuild -allowProvisioningUpdates is the preferred computer-free path, but its cloud certificate/provisioning behavior must be verified with the actual Apple team. It may require additional permission or manual distribution signing. Do not claim success until tested.
+
+## Manual fallback
+Set IOS_SIGNING_MODE=manual. Provide IOS_DISTRIBUTION_P12_BASE64, IOS_DISTRIBUTION_P12_PASSWORD and IOS_PROVISIONING_PROFILE_BASE64 in addition to the API key and team configuration. The .p12 must contain the certificate and its private key. Use an App Store distribution profile for the bundle ID. If a cloud-generated certificate is needed, use a reviewed dedicated signing setup on a hosted Mac with private key retained securely; never upload signing material as a workflow artifact or put it in logs. Do not revoke existing team certificates without owner approval.
+
+## Reference
+- https://developer.apple.com/help/account/certificates/cloud-managed-certificates/
+- https://developer.apple.com/help/account/provisioning-profiles/create-an-app-store-provisioning-profile/
+- https://docs.github.com/en/actions/how-tos/write-workflows/choose-what-workflows-do/use-secrets
+
+## Verification
+Record workflow run links and displayed build numbers in #15, never secret values. Upload success is not evidence of processing or installation. Phase 0 remains open until two TestFlight deployments and physical verification.

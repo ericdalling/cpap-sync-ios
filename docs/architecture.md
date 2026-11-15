@@ -12,3 +12,5 @@ Only presentation and a small bundle-version value type are needed today. Add ot
 
 ## Delivery
 PR → unsigned macOS simulator build/tests → review → main → manually triggered or tagged signed release → App Store Connect processing → internal TestFlight → physical iPhone verification. Release reruns must use distinct build numbers. No external beta or App Store publishing is in scope.
+
+Release verification and signing run as separate jobs; the verification job never receives signing secrets. Automatic signing with a team API key is preferred; manual distribution signing remains a fallback.
