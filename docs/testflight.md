@@ -24,3 +24,6 @@ Set IOS_SIGNING_MODE=manual. Provide IOS_DISTRIBUTION_P12_BASE64, IOS_DISTRIBUTI
 
 ## Verification
 Record workflow run links and displayed build numbers in #15, never secret values. Upload success is not evidence of processing or installation. Phase 0 remains open until two TestFlight deployments and physical verification.
+
+## Version identity
+Both CI and TestFlight use [the shared version resolver](versioning.md). A manually dispatched TestFlight build of a commit has the same marketing version as its GitHub preview but a distinct build number. Explicit `vX.Y.Z` tags must equal the resolved marketing version. Xcode upload must not manage or override the version/build number.

@@ -11,20 +11,21 @@ out="$PWD/build/preview"
 archive="$PWD/build/Preview.xcarchive"
 rm -rf "$out" "$archive"
 mkdir -p "$out"
-build_number="$GITHUB_RUN_NUMBER.$GITHUB_RUN_ATTEMPT"
+build_number="${BUILD_NUMBER:?Resolve version first}"
+app_version="${APP_VERSION:?Resolve version first}"
 xcodebuild -project CPAPSync.xcodeproj -scheme CPAPSync -configuration Release \
   -destination 'generic/platform=iOS' -archivePath "$archive" \
   -derivedDataPath build/PreviewDerivedData \
   CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO \
-  DEBUG_INFORMATION_FORMAT=dwarf-with-dsym CURRENT_PROJECT_VERSION="$build_number" archive
+  DEBUG_INFORMATION_FORMAT=dwarf-with-dsym MARKETING_VERSION="$app_version" CURRENT_PROJECT_VERSION="$build_number" archive
 app="$archive/Products/Applications/CPAPSync.app"
 [[ -d "$app" && -f "$app/Info.plist" ]]
 [[ -d "$archive/dSYMs/CPAPSync.app.dSYM" ]]
 [[ ! -f "$app/embedded.mobileprovision" && ! -d "$app/_CodeSignature" ]]
 version="$(/usr/libexec/PlistBuddy -c 'Print CFBundleShortVersionString' "$app/Info.plist")"
 actual_build="$(/usr/libexec/PlistBuddy -c 'Print CFBundleVersion' "$app/Info.plist")"
-[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$actual_build" == "$build_number" ]]
-prefix="CPAPSync-${version}-main-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}"
+[[ "$version" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ && "$version" == "$app_version" && "$actual_build" == "$build_number" ]]
+prefix="CPAPSync-v${version}-b${actual_build}"
 tmp="$(mktemp -d)"
 trap 'rm -rf "$tmp"' EXIT
 mkdir -p "$tmp/Payload"
@@ -46,6 +47,7 @@ env = os.environ
 run_url = f"{env['GITHUB_SERVER_URL']}/{env['GITHUB_REPOSITORY']}/actions/runs/{env['GITHUB_RUN_ID']}"
 info = {
     "version": version, "build": build, "commit": env["GITHUB_SHA"],
+    "release_tag": f"main-v{version}-b{build}-{env['GITHUB_SHA'][:12]}",
     "run_id": env["GITHUB_RUN_ID"], "run_number": env["GITHUB_RUN_NUMBER"],
     "run_attempt": env["GITHUB_RUN_ATTEMPT"], "run_url": run_url,
     "xcode": subprocess.check_output(["xcodebuild", "-version"], text=True).strip(),
@@ -54,7 +56,7 @@ info = {
 }
 (out / "build-info.json").write_text(json.dumps(info, indent=2) + "\n")
 (out / "release-notes.md").write_text(
-    f"## Automated main build {build}\n\n"
+    f"## CPAP Sync v{version} (build {build})\n\n"
     f"Marketing version: {version}\n\nCommit: `{info['commit']}`\n\n"
     f"[Successful CI run]({run_url})\n\n"
     "Unsigned device build for engineering traceability only. **Not installable on an iPhone.** "

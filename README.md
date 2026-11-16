@@ -21,3 +21,5 @@ Phase 0 is complete only when the owner installs the matching TestFlight build o
 See [CI verification](docs/ci-verification.md) and [ez Share protocol discovery](docs/ezshare-protocol.md). The preferred signing path uses Xcode automatic signing with a team API key on GitHub-hosted macOS; manual signing is a fallback, both still require Apple-side validation.
 
 See [automated main build releases](docs/main-build-releases.md) for assets, tagging, verification and retention. GitHub preview IPAs are not installable; use TestFlight for device installation.
+
+[Automatic versioning](docs/versioning.md) keeps app bundle versions, release tags, filenames and metadata consistent for each commit; local builds retain project.yml defaults unless version overrides are supplied.
