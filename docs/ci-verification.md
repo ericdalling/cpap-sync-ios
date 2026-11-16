@@ -9,3 +9,5 @@ Negative test (temporary PR branch only): add a deterministic failing XCTest, ru
 Configure a required PR check named test (iOS CI) for main in repository Rules/Branches when supported by the plan. Private repository protection may require a paid plan. Do not claim enforcement until verified.
 
 The release workflow independently repeats unsigned tests before accessing signing credentials, so a failing test blocks release.
+
+Main CI also archives and packages an unsigned iOS device build. The publisher runs only after successful test and packaging steps and only for main pushes/manual runs; see [main build releases](main-build-releases.md). Superseded PR runs are canceled; independent main runs are retained for publication.
