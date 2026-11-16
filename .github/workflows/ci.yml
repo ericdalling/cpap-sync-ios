@@ -18,9 +18,14 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+          fetch-depth: 0
+      - name: Resolve version
+        run: bash scripts/resolve-version.sh preview >> "$GITHUB_ENV"
       - name: Validate shell scripts
         run: |
           for script in scripts/*.sh; do bash -n "$script"; done
+      - name: Test version resolver
+        run: bash scripts/test-version.sh
       - name: Bootstrap
         run: |
           xcodebuild -version
@@ -70,6 +75,10 @@ jobs:
           assert info["run_id"] == os.environ["GITHUB_RUN_ID"]
           assert info["run_attempt"] == os.environ["GITHUB_RUN_ATTEMPT"]
           assert info["signing"] == "unsigned"
+          import re
+          assert re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", info["version"])
+          assert info["build"] == f"{os.environ['GITHUB_RUN_NUMBER']}.10.{os.environ['GITHUB_RUN_ATTEMPT']}"
+          assert info["release_tag"] == f"main-v{info['version']}-b{info['build']}-{info['commit'][:12]}"
           PY
       - name: Publish GitHub prerelease
         env:
@@ -77,11 +86,13 @@ jobs:
         working-directory: preview
         run: |
           set -euo pipefail
-          tag="main-${GITHUB_RUN_NUMBER}-${GITHUB_RUN_ATTEMPT}-${GITHUB_SHA:0:12}"
+          tag="$(python3 -c 'import json; print(json.load(open("build-info.json"))["release_tag"])')"
+          version="$(python3 -c 'import json; print(json.load(open("build-info.json"))["version"])')"
+          build="$(python3 -c 'import json; print(json.load(open("build-info.json"))["build"])')"
           # Draft first: incomplete uploads must not become published releases.
           gh release create "$tag" ./*.ipa ./*-dSYMs.zip SHA256SUMS.txt build-info.json \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
-            --title "CPAP Sync main build ${GITHUB_RUN_NUMBER}.${GITHUB_RUN_ATTEMPT}" \
+            --title "CPAP Sync v${version} (build ${build})" \
             --notes-file release-notes.md --draft --prerelease --latest=false
           gh release edit "$tag" --repo "$GITHUB_REPOSITORY" \
             --draft=false --prerelease --latest=false

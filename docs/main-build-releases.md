@@ -4,13 +4,13 @@ Every successful iOS CI run on main (push or manually dispatched on main) builds
 
 ## Release contents
 
-- CPAPSync-<version>-main-<run>-<attempt>-unsigned.ipa (unsigned engineering package; not directly installable)
-- CPAPSync-<version>-main-<run>-<attempt>-dSYMs.zip
+- CPAPSync-v<version>-b<build>-unsigned.ipa (unsigned engineering package; not directly installable)
+- CPAPSync-v<version>-b<build>-dSYMs.zip
 - SHA256SUMS.txt
 - build-info.json (version, build, commit, run, Xcode, signing state)
 - Release notes link the corresponding CI run.
 
-Tags use main-<run-number>-<run-attempt>-<12-char-commit> so each attempt is distinct and does not trigger the existing v* TestFlight workflow. Releases target the exact tested commit, are prereleases and do not replace the latest stable release. The publisher verifies checksums and metadata before creating a draft with all assets, then publishes it. An interrupted publication can leave a draft; inspect it before deleting it or its tag. Rerun the entire workflow for a new candidate and tag, rather than rerunning only the publish job, because artifacts are scoped to the run attempt.
+Tags use main-v<version>-b<build>-<12-char-commit> so each attempt is distinct and does not trigger the existing v* TestFlight workflow. Releases target the exact tested commit, are prereleases and do not replace the latest stable release. The publisher verifies checksums and metadata before creating a draft with all assets, then publishes it. An interrupted publication can leave a draft; inspect it before deleting it or its tag. Rerun the entire workflow for a new candidate and tag, rather than rerunning only the publish job, because artifacts are scoped to the run attempt.
 
 ## Trust and retention
 
@@ -26,4 +26,6 @@ Unsigned packages are not signed IPAs, and Apple enrollment is not required for 
 2. A failing test prevents packaging and publication, with test evidence retained.
 3. A successful main run publishes exactly one prerelease for that attempt; verify target SHA, all four assets and matching checksums.
 4. A second successful main run (or full rerun) creates a distinct prerelease; no Apple credentials are necessary.
-5. The signed TestFlight workflow is unchanged and is not triggered by main-* tags.
+5. The signed TestFlight workflow resolves the same marketing version from the same commit; it is not triggered by main-* tags.
+
+See [versioning policy](versioning.md) for automatic patch increments and build identity.
