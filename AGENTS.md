@@ -7,3 +7,5 @@
 - Never write to the CPAP card. Never commit real patient data, device identifiers, credentials or signing material. Use synthetic fixtures; keep diagnostics sanitized.
 - No external data transmission without explicit user consent. Preserve raw bytes and directory structure when implementing sync.
 - Release secrets are limited to trusted refs; do not run untrusted code with signing credentials. Do not merge or deploy automatically unless authorized.
+
+- Every change to main must use a PR, with an independent code owner approval on the latest changes, all review conversations resolved, and all required CI checks green. Do not bypass branch protections. If plan or identity limitations prevent enforcement, report the blocker and do not represent the policy as active. See docs/main-branch-governance.md.
