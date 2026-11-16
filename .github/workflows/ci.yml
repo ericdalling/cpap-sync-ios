@@ -24,6 +24,8 @@ jobs:
       - name: Validate shell scripts
         run: |
           for script in scripts/*.sh; do bash -n "$script"; done
+      - name: Test version resolver
+        run: bash scripts/test-version.sh
       - name: Bootstrap
         run: |
           xcodebuild -version
