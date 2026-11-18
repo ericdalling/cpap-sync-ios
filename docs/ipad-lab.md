@@ -1,0 +1,11 @@
+# iPad lab
+
+Download the CPAPSyncLab-v<version>-b<build>.swiftpm.zip asset from GitHub Releases to On My iPad, extract it in Files, open CPAPSyncLab.swiftpm in Swift Playgrounds, and tap Run. No paid developer account or private GitHub package dependency is needed to run the lab. The generated project embeds the exact canonical Swift core sources; do not edit the generated copy and expect changes to propagate. The production app links the same package.
+
+Manually join ez Share Wi-Fi outside active therapy, accept local network permission and tap Test connection / list root. If successful, tap Sync CPAP data. Keep the lab foregrounded and iPad awake. The candidate endpoint and <pre> listing format come from independent implementations; actual firmware must be tested. Unknown/malformed responses fail closed. The app only GETs /dir or /download on 192.168.4.1, refuses redirects and cellular access, validates paths, and never modifies the card.
+
+Use a single card per lab backup; delete local backup before switching devices. Files are stored in app-private Application Support, excluded from backup and replaced atomically. This first implementation re-reads files and compares bytes rather than skipping network downloads based on unverified timestamps. A failed sync retains complete files but disables export until a successful sync; no claim of snapshot consistency during active therapy. No remote deletions are mirrored. Large downloads currently buffer one file in memory; streaming, bounded retries, trusted metadata and multi-device identity are later work.
+
+After completion choose Export folder to Files, choose a writable On My iPad folder, and then reconnect home Wi-Fi. Upload the exported folder using SleepHQ's manual import. Actual iPad folder export and SleepHQ import must be verified; ZIP import is not assumed. Delete exported copies manually. Do not send real CPAP data or raw listing screenshots to GitHub or chat. Report only sanitized counts, status, firmware/model and redacted endpoint structure.
+
+CI tests the shared package, builds the production app, typechecks flattened lab Swift for iOS and validates the generated app manifest and archive. It does not prove physical iPad execution, card compatibility or SleepHQ import.

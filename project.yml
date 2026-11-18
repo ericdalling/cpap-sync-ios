@@ -8,11 +8,16 @@ settings:
     SWIFT_VERSION: "5.0"
     MARKETING_VERSION: "0.0.1"
     CURRENT_PROJECT_VERSION: "1"
+packages:
+  CPAPSyncCore:
+    path: Packages/CPAPSyncCore
 targets:
   CPAPSync:
     type: application
     platform: iOS
     sources: [CPAPSync]
+    dependencies:
+      - package: CPAPSyncCore
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ericdalling.cpapsync

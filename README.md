@@ -1,6 +1,6 @@
 # CPAP Sync iOS
 
-Local-first wireless CPAP data synchronization. Phase 0 (v0.0.1) is a Hello World delivery skeleton; no CPAP connectivity or therapy data processing is implemented yet.
+Local-first wireless CPAP data synchronization. Phase 0 (v0.0.1) is a Hello World delivery skeleton; the production UI remains a foundation screen while CPAPSyncCore and the iPad lab validate read-only card synchronization.
 
 Specifications and priorities live in [GitHub Issues](https://github.com/ericdalling/cpap-sync-ios/issues/1). See [architecture](docs/architecture.md), [technology ADR](docs/adr/0001-technology-stack.md), and [TestFlight setup](docs/testflight.md).
 
@@ -23,3 +23,6 @@ See [CI verification](docs/ci-verification.md) and [ez Share protocol discovery]
 See [automated main build releases](docs/main-build-releases.md) for assets, tagging, verification and retention. GitHub preview IPAs are not installable; use TestFlight for device installation.
 
 [Automatic versioning](docs/versioning.md) keeps app bundle versions, release tags, filenames and metadata consistent for each commit; local builds retain project.yml defaults unless version overrides are supplied.
+
+## iPad lab
+Download the `.swiftpm.zip` asset from a successful main release, extract in Files and open `CPAPSyncLab.swiftpm` in Swift Playgrounds. Connect manually to ez Share outside therapy, allow local network access, list root, sync, then export into On My iPad and reconnect to home Wi-Fi for manual SleepHQ upload. See [lab guide](docs/ipad-lab.md).
