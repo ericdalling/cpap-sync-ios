@@ -1,0 +1,23 @@
+// swift-tools-version: 5.9
+import PackageDescription
+import AppleProductTypes
+let package = Package(
+    name: "CPAP Sync Lab",
+    platforms: [.iOS("17.0")],
+    products: [
+        .iOSApplication(
+            name: "CPAP Sync Lab",
+            targets: ["AppModule"],
+            bundleIdentifier: "com.ericdalling.cpapsync.lab",
+            displayVersion: "__VERSION__",
+            bundleVersion: "__BUILD__",
+            appIcon: .placeholder(icon: .star),
+            accentColor: .presetColor(.blue),
+            supportedDeviceFamilies: [.pad, .phone],
+            supportedInterfaceOrientations: [.portrait, .landscapeLeft, .landscapeRight, .portraitUpsideDown(.when(deviceFamilies: [.pad]))],
+            capabilities: [.localNetwork(purposeString: "Read files from your local ez Share SD card.", bonjourServiceTypes: [])],
+            additionalInfoPlistContentFilePath: "LabInfo.plist"
+        )
+    ],
+    targets: [.executableTarget(name: "AppModule", path: "App")]
+)

@@ -1,4 +1,5 @@
 import SwiftUI
+import CPAPSyncCore
 
 struct ContentView: View {
     var body: some View {
@@ -12,8 +13,9 @@ struct ContentView: View {
             Text("Hello, CPAP Sync!")
                 .font(.title2)
                 .accessibilityIdentifier("helloMessage")
-            Text("Foundation release")
+            Text("Foundation release · core ready")
                 .foregroundStyle(.secondary)
+            Text(CardAddress.host).font(.caption).foregroundStyle(.secondary)
             Spacer()
             Text(AppVersion.current.display)
                 .font(.footnote)

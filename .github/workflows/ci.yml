@@ -26,6 +26,8 @@ jobs:
           for script in scripts/*.sh; do bash -n "$script"; done
       - name: Test version resolver
         run: bash scripts/test-version.sh
+      - name: Test shared Swift core
+        run: swift test --package-path Packages/CPAPSyncCore
       - name: Bootstrap
         run: |
           xcodebuild -version
@@ -44,6 +46,8 @@ jobs:
           retention-days: 7
       - name: Package unsigned device build
         run: bash scripts/package-preview.sh
+      - name: Package and validate iPad lab
+        run: bash scripts/package-lab.sh
       - name: Upload release candidate
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
@@ -75,6 +79,9 @@ jobs:
           assert info["run_id"] == os.environ["GITHUB_RUN_ID"]
           assert info["run_attempt"] == os.environ["GITHUB_RUN_ATTEMPT"]
           assert info["signing"] == "unsigned"
+          from pathlib import Path
+          assert info["playground"] == f"CPAPSyncLab-v{info['version']}-b{info['build']}.swiftpm.zip"
+          assert Path(info["playground"]).is_file()
           import re
           assert re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", info["version"])
           assert info["build"] == f"{os.environ['GITHUB_RUN_NUMBER']}.10.{os.environ['GITHUB_RUN_ATTEMPT']}"
@@ -90,7 +97,7 @@ jobs:
           version="$(python3 -c 'import json; print(json.load(open("build-info.json"))["version"])')"
           build="$(python3 -c 'import json; print(json.load(open("build-info.json"))["build"])')"
           # Draft first: incomplete uploads must not become published releases.
-          gh release create "$tag" ./*.ipa ./*-dSYMs.zip SHA256SUMS.txt build-info.json \
+          gh release create "$tag" ./*.ipa ./*-dSYMs.zip ./*.swiftpm.zip SHA256SUMS.txt build-info.json \
             --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" \
             --title "CPAP Sync v${version} (build ${build})" \
             --notes-file release-notes.md --draft --prerelease --latest=false
