@@ -34,7 +34,9 @@ mode="${SIGNING_MODE:-automatic}"
 profile_name=""
 case "$mode" in
  automatic)
-  "${archive[@]}" CODE_SIGN_STYLE=Automatic "${auth[@]}" archive
+  # Force distribution signing for TestFlight. Without this XcodeGen defaults to
+  # an iOS development profile and fails when the team has no registered devices.
+  "${archive[@]}" CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="Apple Distribution" "${auth[@]}" archive
   ;;
  manual)
   for name in P12_BASE64 P12_PASSWORD PROFILE_BASE64; do
