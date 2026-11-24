@@ -1,0 +1,9 @@
+# iPhone sync and export (first production UI)
+
+This release connects the existing validated `CPAPSyncCore` package to the real TestFlight app. Connect the iPhone manually to the ez Share card's Wi-Fi first; launch the app, test root listing, then sync. It reads only `http://192.168.4.1/dir` and `/download`, blocks redirects and cellular traffic, and stores files in app-private Application Support/CPAPData (excluded from device backup; complete-file protection). Keep the app active and iPhone awake during a sync. The card is never modified.
+
+After the sync succeeds, choose **Export folder to Files**, select a writable **On My iPhone** folder. The app copies the data to a new `CPAPData-<UUID>` subdirectory. Rejoin your usual Wi-Fi and use SleepHQ's manual upload. Actual SleepHQ compatibility has not been established: do not claim successful upload or clinical accuracy until tested. Avoid exporting `ezshare.cfg` in shared locations; the card root may include credentials in that config. A subsequent iteration should exclude that file from the export by default.
+
+The app only enables export after a complete sync during this app session; past backups are preserved if interrupted. It re-reads file bytes instead of trusting unverified card change metadata. A single backup location is suitable only for one card; delete it before switching cards. The current implementation buffers each file in memory; avoid very large files until streaming is added. For error reports, share only redacted status and counts, never CPAP files, raw directory listings or card secrets.
+
+Acceptance on iPhone: grant local network permission, verify root entries, successfully sync, export to On My iPhone, confirm Files location and SleepHQ upload where possible; verify cancellation/retry and that the original SD card remains unchanged. CI covers Swift package, simulator and unsigned packaging; physical radio/File Provider/SleepHQ tests remain manual.

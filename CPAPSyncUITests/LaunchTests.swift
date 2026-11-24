@@ -1,11 +1,13 @@
 import XCTest
 
 final class LaunchTests: XCTestCase {
-    func testHelloWorldLaunch() {
+    func testSyncHomeLaunch() {
         let app = XCUIApplication()
         app.launch()
-        XCTAssertTrue(app.staticTexts["helloMessage"].waitForExistence(timeout: 15))
-        XCTAssertEqual(app.staticTexts["helloMessage"].label, "Hello, CPAP Sync!")
+        XCTAssertTrue(app.buttons["testConnectionButton"].waitForExistence(timeout: 15))
+        XCTAssertTrue(app.buttons["syncButton"].exists)
+        XCTAssertTrue(app.staticTexts["syncStatus"].exists)
         XCTAssertTrue(app.staticTexts["appVersion"].exists)
+        XCTAssertFalse(app.buttons["exportButton"].isEnabled)
     }
 }
