@@ -28,6 +28,8 @@ jobs:
         run: bash scripts/test-version.sh
       - name: Test shared Swift core
         run: swift test --package-path Packages/CPAPSyncCore
+      - name: Test release tag validation
+        run: bash scripts/test-release-tag.sh
       - name: Bootstrap
         run: |
           xcodebuild -version
@@ -85,7 +87,7 @@ jobs:
           import re
           assert re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", info["version"])
           assert info["build"] == f"{os.environ['GITHUB_RUN_NUMBER']}.10.{os.environ['GITHUB_RUN_ATTEMPT']}"
-          assert info["release_tag"] == f"main-v{info['version']}-b{info['build']}-{info['commit'][:12]}"
+          assert info["release_tag"] == f"v{info['version']}-b{info['build']}-{info['commit'][:12]}"
           PY
       - name: Publish GitHub prerelease
         env:

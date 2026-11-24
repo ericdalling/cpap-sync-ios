@@ -47,7 +47,7 @@ env = os.environ
 run_url = f"{env['GITHUB_SERVER_URL']}/{env['GITHUB_REPOSITORY']}/actions/runs/{env['GITHUB_RUN_ID']}"
 info = {
     "version": version, "build": build, "commit": env["GITHUB_SHA"],
-    "release_tag": f"main-v{version}-b{build}-{env['GITHUB_SHA'][:12]}",
+    "release_tag": f"v{version}-b{build}-{env['GITHUB_SHA'][:12]}",
     "run_id": env["GITHUB_RUN_ID"], "run_number": env["GITHUB_RUN_NUMBER"],
     "run_attempt": env["GITHUB_RUN_ATTEMPT"], "run_url": run_url,
     "xcode": subprocess.check_output(["xcodebuild", "-version"], text=True).strip(),
