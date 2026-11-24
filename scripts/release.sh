@@ -34,9 +34,17 @@ mode="${SIGNING_MODE:-automatic}"
 profile_name=""
 case "$mode" in
  automatic)
-  # Force distribution signing for TestFlight. Without this XcodeGen defaults to
-  # an iOS development profile and fails when the team has no registered devices.
-  "${archive[@]}" CODE_SIGN_STYLE=Automatic CODE_SIGN_IDENTITY="Apple Distribution" "${auth[@]}" archive
+  # An archive normally requests an iOS development profile. New Apple teams
+  # without registered devices cannot satisfy that, and overriding the code
+  # signing identity with Apple Distribution conflicts with automatic signing.
+  # Build the archive unsigned; exportArchive with signingStyle=automatic and
+  # method=app-store-connect selects Apple's distribution signing instead.
+  # Keep API-key auth on export only, where cloud provisioning happens.
+  "${archive[@]}" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO archive
+  # Fail if archive unexpectedly carries a development signature.
+  [[ ! -d build/CPAPSync.xcarchive/Products/Applications/CPAPSync.app/_CodeSignature ]] || {
+    echo "Expected unsigned archive before distribution export" >&2; exit 1;
+  }
   ;;
  manual)
   for name in P12_BASE64 P12_PASSWORD PROFILE_BASE64; do
@@ -79,4 +87,16 @@ with open(path, "wb") as f:
 PY
 # Xcode performs the upload; the API key remains in the temporary directory.
 xcodebuild -exportArchive -archivePath build/CPAPSync.xcarchive -exportPath build/export -exportOptionsPlist "$tmp/export.plist" "${auth[@]}"
+# Destination=upload may not retain an IPA locally, but if it does, inspect its
+# distribution provisioning signature without ever dumping sensitive contents.
+ipa="$(find build/export -maxdepth 2 -name '*.ipa' -print -quit 2>/dev/null || true)"
+if [[ -n "$ipa" ]]; then
+  inspect="$tmp/ipa"
+  mkdir -p "$inspect"
+  unzip -qq "$ipa" 'Payload/CPAPSync.app/embedded.mobileprovision' -d "$inspect"
+  security cms -D -i "$inspect/Payload/CPAPSync.app/embedded.mobileprovision" > "$tmp/export-profile.plist"
+  get_task_allow="$(/usr/libexec/PlistBuddy -c 'Print :Entitlements:get-task-allow' "$tmp/export-profile.plist" 2>/dev/null || true)"
+  [[ "$get_task_allow" != "true" ]] || { echo "Refusing development-signed distribution profile" >&2; exit 1; }
+  echo "Export contains an embedded distribution provisioning profile."
+fi
 echo "Upload command succeeded. Verify App Store Connect processing and internal TestFlight separately."
