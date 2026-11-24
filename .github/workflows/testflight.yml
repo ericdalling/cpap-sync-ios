@@ -1,6 +1,9 @@
 name: TestFlight
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows: ['iOS CI']
+    types: [completed]
   push:
     tags: ['v*']
 permissions:
@@ -10,19 +13,38 @@ concurrency:
   cancel-in-progress: false
 jobs:
   verify:
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    # workflow_run is a privileged event: allow only successful push runs on our own main.
+    if: >-
+      (github.event_name == 'workflow_run' &&
+       github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main' &&
+       github.event.workflow_run.head_repository.full_name == github.repository) ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
     runs-on: macos-26
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
       - name: Verify trusted commit
-        run: git merge-base --is-ancestor HEAD origin/main
+        env:
+          EXPECTED_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+        run: |
+          test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
+          git merge-base --is-ancestor HEAD origin/main
       - name: Resolve version
         run: bash scripts/resolve-version.sh testflight >> "$GITHUB_ENV"
-      - name: Bootstrap and test
+      - name: Validate release tag
+        if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+        run: bash scripts/validate-release-tag.sh "$GITHUB_REF_NAME" "$APP_VERSION" "$(git rev-parse HEAD)"
+      - name: Validate release tag tests
+        run: bash scripts/test-release-tag.sh
+      - name: Bootstrap and test for manual/tag runs
+        if: github.event_name != 'workflow_run'
         run: |
           bash scripts/bootstrap.sh
           bash scripts/test-ios.sh
@@ -34,13 +56,14 @@ jobs:
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
         with:
+          ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
           persist-credentials: false
           fetch-depth: 0
       - name: Resolve version
         run: bash scripts/resolve-version.sh testflight >> "$GITHUB_ENV"
-      - name: Validate explicit release tag
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: 'test "$GITHUB_REF_NAME" = "v$APP_VERSION"'
+      - name: Validate release tag
+        if: startsWith(github.ref, 'refs/tags/v') && github.event_name == 'push'
+        run: bash scripts/validate-release-tag.sh "$GITHUB_REF_NAME" "$APP_VERSION" "$(git rev-parse HEAD)"
       - name: Bootstrap
         run: bash scripts/bootstrap.sh
       - name: Archive, sign and upload
