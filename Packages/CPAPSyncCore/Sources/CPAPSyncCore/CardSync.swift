@@ -26,6 +26,12 @@ public struct SyncOptions: Sendable {
 public struct CardSync: Sendable {
     public let client: EZShareClient
     public init(client: EZShareClient = EZShareClient()) { self.client = client }
+    public static func clearIndex(for root: URL) throws {
+        let location = IncrementalIndex.location(for: root)
+        if FileManager.default.fileExists(atPath: location.path) {
+            try FileManager.default.removeItem(at: location)
+        }
+    }
 
     // Skip only older DATALOG files with stable listing metadata and a verified
     // local index record. Re-download anything ambiguous. Writes stay atomic.

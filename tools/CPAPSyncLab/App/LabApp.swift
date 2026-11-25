@@ -84,6 +84,7 @@ struct LabView: View {
                         if FileManager.default.fileExists(atPath: backup.path) {
                             try FileManager.default.removeItem(at: backup)
                         }
+                        try CardSync.clearIndex(for: backup)
                         completed = false
                         report = SyncReport()
                         status = "Local backup deleted."
