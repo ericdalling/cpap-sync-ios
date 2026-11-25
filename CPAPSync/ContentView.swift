@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 import CPAPSyncCore
 
@@ -72,6 +73,15 @@ struct ContentView: View {
                         resetConfirmation = true
                     }
                     .disabled(operation != nil)
+                }
+
+                Section("Sync performance") {
+                    Text(report.diagnosticSummary)
+                        .font(.system(.footnote, design: .monospaced))
+                        .textSelection(.enabled)
+                    Button("Copy diagnostic report") {
+                        UIPasteboard.general.string = report.diagnosticSummary
+                    }
                 }
 
                 Section("Export to SleepHQ") {
