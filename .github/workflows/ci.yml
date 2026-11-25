@@ -12,7 +12,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   test:
-    runs-on: macos-26
+    # Stable general-availability macOS runner. TestFlight signing retains macos-26.
+    # macos-26 has been cancelled without any test logs after prolonged queueing.
+    runs-on: macos-15
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4

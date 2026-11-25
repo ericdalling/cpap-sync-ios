@@ -10,6 +10,7 @@ struct ContentView: View {
     @State private var exportFolder = false
     @State private var resetConfirmation = false
     @State private var completed = false
+    @State private var forceRefresh = false
 
     private let client = EZShareClient()
 
@@ -44,14 +45,16 @@ struct ContentView: View {
                 Section("Sync CPAP files") {
                     Text("Read-only download. Nothing is deleted or changed on the card.")
                         .font(.footnote).foregroundStyle(.secondary)
-                    Text("Files: \(report.files) · Updated: \(report.changed) · Unchanged: \(report.unchanged)")
+                    Toggle("Force full refresh", isOn: $forceRefresh)
+                        .disabled(operation != nil)
+                    Text("Files: \(report.files) · Updated: \(report.changed) · Unchanged: \(report.unchanged) · Skipped downloads: \(report.skipped)")
                         .accessibilityIdentifier("syncCounts")
                     Text("Read: \(ByteCountFormatter.string(fromByteCount: Int64(report.bytes), countStyle: .file))")
                     Button("Sync CPAP data") {
                         completed = false
                         report = SyncReport()
                         start {
-                            report = try await CardSync(client: client).sync(to: backup) { update in
+                            report = try await CardSync(client: client).sync(to: backup, options: SyncOptions(forceFullRefresh: forceRefresh)) { update in
                                 await MainActor.run { report = update }
                             }
                             completed = true
@@ -91,6 +94,7 @@ struct ContentView: View {
                         if FileManager.default.fileExists(atPath: backup.path) {
                             try FileManager.default.removeItem(at: backup)
                         }
+                        try CardSync.clearIndex(for: backup)
                         report = SyncReport()
                         completed = false
                         status = "Local backup deleted."
