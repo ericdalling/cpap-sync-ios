@@ -21,6 +21,9 @@ targets:
     info:
       path: CPAPSync/GeneratedInfo.plist
       properties:
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        CFBundleDisplayName: "CPAP Sync"
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
         NSLocalNetworkUsageDescription: "Connect to your ez Share Wi-Fi SD card to download CPAP therapy files."
