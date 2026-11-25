@@ -4,12 +4,13 @@ import FoundationNetworking
 #endif
 
 public enum CardError: Error, LocalizedError {
-    case invalidLink, invalidListing, badResponse, limitExceeded, unsafePath, unsupportedContent
+    case invalidLink, invalidListing, badResponse, limitExceeded, unsafePath, unsupportedContent, httpStatus(Int)
     public var errorDescription: String? {
         switch self {
         case .invalidLink: return "Card returned an unsupported or unsafe link."
         case .invalidListing: return "Card did not return a recognizable directory listing."
         case .badResponse: return "Card HTTP request failed. Check Wi-Fi and local network permission."
+        case .httpStatus(let status): return "Card returned HTTP \(status)."
         case .limitExceeded: return "Safety limit reached; sync stopped."
         case .unsafePath: return "Unsafe local path; sync stopped."
         case .unsupportedContent: return "Card returned HTML instead of a file."
@@ -72,7 +73,8 @@ public final class LocalCardTransport: CardTransport, @unchecked Sendable {
         request.httpMethod = "GET"
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse,
-              http.statusCode == 200, http.url == url else { throw CardError.badResponse }
+              http.url == url else { throw CardError.badResponse }
+        guard http.statusCode == 200 else { throw CardError.httpStatus(http.statusCode) }
         if url.path == "/download",
            http.mimeType?.lowercased() == "text/html" { throw CardError.unsupportedContent }
         return data
@@ -133,9 +135,30 @@ public enum DirectoryParser {
 public struct EZShareClient: Sendable {
     private let transport: any CardTransport
     public init(transport: any CardTransport = LocalCardTransport()) { self.transport = transport }
+    private func request(_ url: URL) async throws -> Data {
+        for attempt in 0..<3 {
+            try Task.checkCancellation()
+            do { return try await transport.get(url) }
+            catch is CancellationError { throw CancellationError() }
+            catch {
+                let retryable: Bool
+                if let network = error as? URLError {
+                    retryable = [.timedOut, .networkConnectionLost, .cannotConnectToHost,
+                                 .notConnectedToInternet].contains(network.code)
+                } else if case CardError.httpStatus(let status) = error {
+                    retryable = status == 429 || (500...599).contains(status)
+                } else {
+                    retryable = false
+                }
+                guard retryable && attempt < 2 else { throw error }
+                try await Task.sleep(nanoseconds: UInt64(250 * (1 << attempt)) * 1_000_000)
+            }
+        }
+        throw CardError.badResponse
+    }
     public func list(_ directory: URL = CardAddress.root) async throws -> [CardEntry] {
         guard CardAddress.valid(directory, directory: true) else { throw CardError.invalidLink }
-        let data = try await transport.get(directory)
+        let data = try await request(directory)
         guard let text = String(data: data, encoding: .utf8) ?? String(data: data, encoding: .isoLatin1) else {
             throw CardError.invalidListing
         }
@@ -143,6 +166,6 @@ public struct EZShareClient: Sendable {
     }
     public func download(_ entry: CardEntry) async throws -> Data {
         guard !entry.isDirectory, CardAddress.valid(entry.url, directory: false) else { throw CardError.invalidLink }
-        return try await transport.get(entry.url)
+        return try await request(entry.url)
     }
 }
