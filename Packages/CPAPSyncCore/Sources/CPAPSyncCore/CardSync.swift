@@ -34,6 +34,8 @@ public struct CardSync: Sendable {
                 entriesSeen += 1
                 guard entriesSeen <= 100_000 else { throw CardError.limitExceeded }
                 guard CardAddress.safeName(entry.name) else { throw CardError.unsafePath }
+                // The card's Wi-Fi configuration may contain credentials; do not copy it.
+                if !entry.isDirectory && entry.name.lowercased() == "ezshare.cfg" { continue }
                 let destination = local.appendingPathComponent(entry.name, isDirectory: entry.isDirectory)
                 try Self.rejectSymlink(destination)
                 if entry.isDirectory {

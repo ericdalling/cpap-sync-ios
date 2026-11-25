@@ -18,10 +18,17 @@ targets:
     sources: [CPAPSync]
     dependencies:
       - package: CPAPSyncCore
+    info:
+      path: CPAPSync/GeneratedInfo.plist
+      properties:
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        NSLocalNetworkUsageDescription: "Connect to your ez Share Wi-Fi SD card to download CPAP therapy files."
+        ITSAppUsesNonExemptEncryption: false
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.ericdalling.cpapsync
-        GENERATE_INFOPLIST_FILE: YES
+        GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_KEY_CFBundleDisplayName: CPAP Sync
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.healthcare-fitness
