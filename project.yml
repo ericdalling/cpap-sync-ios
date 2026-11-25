@@ -24,7 +24,7 @@ targets:
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
         CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         CFBundleDisplayName: "CPAP Sync"
-        # Modern iPhones require an explicit launch screen declaration to avoid
+        # Modern iPhones and iPads require an explicit launch screen declaration to avoid
         # legacy compatibility letterboxing. A blank dict uses the system launch screen.
         UILaunchScreen: {}
         NSAppTransportSecurity:
@@ -38,7 +38,7 @@ targets:
         INFOPLIST_KEY_CFBundleDisplayName: CPAP Sync
         INFOPLIST_KEY_LSApplicationCategoryType: public.app-category.healthcare-fitness
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
-        TARGETED_DEVICE_FAMILY: "1"
+        TARGETED_DEVICE_FAMILY: "1,2"
   CPAPSyncTests:
     type: bundle.unit-test
     platform: iOS

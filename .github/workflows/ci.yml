@@ -36,9 +36,10 @@ jobs:
         run: |
           xcodebuild -version
           bash scripts/bootstrap.sh
-      - name: Verify iPhone launch screen metadata
+      - name: Verify iPhone and iPad launch metadata
         run: |
           /usr/libexec/PlistBuddy -c "Print :UILaunchScreen" CPAPSync/GeneratedInfo.plist
+          grep -Eq "TARGETED_DEVICE_FAMILY = 1,2;" CPAPSync.xcodeproj/project.pbxproj
           /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" CPAPSync/GeneratedInfo.plist | grep -Fq '$(MARKETING_VERSION)'
           /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" CPAPSync/GeneratedInfo.plist | grep -Fq '$(CURRENT_PROJECT_VERSION)'
       - name: Test
