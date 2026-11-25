@@ -18,10 +18,26 @@ public enum CardError: Error, LocalizedError {
     }
 }
 
+public struct CardStamp: Equatable, Sendable {
+    public let signature: String
+    public let modifiedAt: Date
+    public init(signature: String, modifiedAt: Date) {
+        self.signature = signature
+        self.modifiedAt = modifiedAt
+    }
+}
+
 public struct CardEntry: Equatable, Sendable {
     public let name: String
     public let url: URL
     public let isDirectory: Bool
+    public let stamp: CardStamp?
+    public init(name: String, url: URL, isDirectory: Bool, stamp: CardStamp? = nil) {
+        self.name = name
+        self.url = url
+        self.isDirectory = isDirectory
+        self.stamp = stamp
+    }
 }
 
 public protocol CardTransport: Sendable {
@@ -107,6 +123,25 @@ public enum DirectoryParser {
         }
         return result.replacingOccurrences(of: "&amp;", with: "&")
     }
+    // Read optional firmware timestamp and rounded size before a file link.
+    // Unparseable or absent metadata always results in a download, never a skip.
+    private static func stamp(in prefix: String) -> CardStamp? {
+        let pattern = #"(?m)(\d{4})-\s*(\d{1,2})-\s*(\d{1,2})\s+(\d{1,2}):\s*(\d{1,2}):\s*(\d{1,2})\s+(\d+(?:\.\d+)?(?:KB|MB|GB|B)?)\s*$"#
+        guard let groups = matches(pattern, in: prefix).last, groups.count == 8 else { return nil }
+        let parts = groups[1...6].compactMap { Int($0) }
+        guard parts.count == 6 else { return nil }
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let fields = DateComponents(timeZone: calendar.timeZone, year: parts[0],
+                                    month: parts[1], day: parts[2], hour: parts[3],
+                                    minute: parts[4], second: parts[5])
+        guard let date = calendar.date(from: fields) else { return nil }
+        let result = calendar.dateComponents([.year, .month, .day, .hour, .minute, .second], from: date)
+        guard result.year == parts[0], result.month == parts[1], result.day == parts[2],
+              result.hour == parts[3], result.minute == parts[4], result.second == parts[5] else { return nil }
+        return CardStamp(signature: parts.map(String.init).joined(separator: "-") + "|" + groups[7].uppercased(),
+                         modifiedAt: date)
+    }
     public static func parse(_ html: String, relativeTo directory: URL) throws -> [CardEntry] {
         guard CardAddress.valid(directory, directory: true), html.utf8.count <= 8_000_000 else {
             throw CardError.invalidListing
@@ -116,14 +151,21 @@ public enum DirectoryParser {
         let anchors = matches("(?is)<a\\b[^>]*\\bhref\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s>]+))[^>]*>(.*?)</a\\s*>", in: blocks[0][1])
         var entries: [CardEntry] = []
         var names = Set<String>()
+        let listing = blocks[0][1] as NSString
+        var cursor = 0
         for a in anchors {
+            let range = listing.range(of: a[0], range: NSRange(location: cursor, length: listing.length - cursor))
+            guard range.location != NSNotFound else { throw CardError.invalidListing }
+            let prefix = listing.substring(with: NSRange(location: cursor, length: range.location - cursor))
+            cursor = NSMaxRange(range)
             let name = decode(a[4].replacingOccurrences(of: "<[^>]*>", with: "", options: .regularExpression)).trimmingCharacters(in: .whitespacesAndNewlines)
             if name == "." || name == ".." || name == "[..]" || name.lowercased() == "parent directory" { continue }
             let href = decode([a[1], a[2], a[3]].first(where: { !$0.isEmpty }) ?? "")
             guard let url = URL(string: href, relativeTo: directory)?.absoluteURL,
                   CardAddress.valid(url), CardAddress.safeName(name) else { throw CardError.invalidLink }
             guard names.insert(name.precomposedStringWithCanonicalMapping.lowercased()).inserted else { throw CardError.invalidListing }
-            entries.append(CardEntry(name: name, url: url, isDirectory: url.path == "/dir"))
+            entries.append(CardEntry(name: name, url: url, isDirectory: url.path == "/dir",
+                                     stamp: url.path == "/dir" ? nil : stamp(in: prefix)))
         }
         // Do not interpret a malformed link-bearing response as an empty directory.
         let openingCount = matches("(?is)<a\\b", in: blocks[0][1]).count

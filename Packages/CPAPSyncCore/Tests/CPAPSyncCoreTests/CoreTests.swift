@@ -137,3 +137,94 @@ extension CoreTests {
         XCTAssertEqual(report.files, 2)
     }
 }
+
+
+// Listing metadata is intentionally absent from older fixture HTML, causing
+// a full refresh for backward compatibility.
+private actor CountingTransport: CardTransport {
+    private var responses: [String: Data]
+    private var counts: [String: Int] = [:]
+    init(responses: [String: Data]) { self.responses = responses }
+    func set(_ url: String, bytes: Data) { responses[url] = bytes }
+    func get(_ url: URL) async throws -> Data {
+        counts[url.absoluteString, default: 0] += 1
+        guard let data = responses[url.absoluteString] else { throw CardError.badResponse }
+        return data
+    }
+    func calls(_ url: String) -> Int { counts[url, default: 0] }
+}
+
+extension CoreTests {
+    private func listing(_ size: String = "4B", _ date: String = "2021-11- 6 16:17: 0") -> Data {
+        Data("<pre>\n\(date) \(size) <a href='/dir?dir=A:%5CDATALOG'>DATALOG</a>\n</pre>".utf8)
+    }
+
+    func testIncrementalSkipsStableDatalogAndRefreshesChangedMetadata() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer {
+            try? FileManager.default.removeItem(at: folder)
+            try? FileManager.default.removeItem(at: IncrementalIndex.location(for: folder))
+        }
+        let dir = "http://192.168.4.1/dir?dir=A:%5CDATALOG"
+        let file = "http://192.168.4.1/download?file=A:%5CDATALOG%5Csample.edf"
+        let transport = CountingTransport(responses: [
+            CardAddress.root.absoluteString: Data("<pre><a href='/dir?dir=A:%5CDATALOG'>DATALOG</a></pre>".utf8),
+            dir: Data("<pre>\n2021-11- 6 16:17: 0 4B <a href='/download?file=A:%5CDATALOG%5Csample.edf'>sample.edf</a>\n</pre>".utf8),
+            file: Data([1,2,3,4])
+        ])
+        let sync = CardSync(client: EZShareClient(transport: transport))
+        let first = try await sync.sync(to: folder)
+        XCTAssertEqual(first.changed, 1)
+        let callCount1 = await transport.calls(file)
+        XCTAssertEqual(callCount1, 1)
+        let second = try await sync.sync(to: folder)
+        XCTAssertEqual(second.skipped, 1)
+        XCTAssertEqual(second.bytes, 0)
+        let callCount1 = await transport.calls(file)
+        XCTAssertEqual(callCount1, 1)
+        await transport.set(dir, bytes: Data("<pre>\n2021-11- 7 16:17: 0 4B <a href='/download?file=A:%5CDATALOG%5Csample.edf'>sample.edf</a>\n</pre>".utf8))
+        await transport.set(file, bytes: Data([9,8,7,6]))
+        let third = try await sync.sync(to: folder)
+        XCTAssertEqual(third.changed, 1)
+        let callCount2 = await transport.calls(file)
+        XCTAssertEqual(callCount2, 2)
+        let forced = try await sync.sync(to: folder, options: SyncOptions(forceFullRefresh: true))
+        XCTAssertEqual(forced.skipped, 0)
+        let callCount3 = await transport.calls(file)
+        XCTAssertEqual(callCount3, 3)
+    }
+
+    func testIncrementalMissesDoNotSkipAndLocalMutationsTriggerRefresh() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer {
+            try? FileManager.default.removeItem(at: folder)
+            try? FileManager.default.removeItem(at: IncrementalIndex.location(for: folder))
+        }
+        let url = "http://192.168.4.1/download?file=A:%5CDATALOG%5Csample.edf"
+        let dir = "http://192.168.4.1/dir?dir=A:%5CDATALOG"
+        let response = Data("<pre>\n2021-11- 6 16:17: 0 4B <a href='/download?file=A:%5CDATALOG%5Csample.edf'>sample.edf</a>\n</pre>".utf8)
+        let transport = CountingTransport(responses: [
+            CardAddress.root.absoluteString: Data("<pre><a href='/dir?dir=A:%5CDATALOG'>DATALOG</a></pre>".utf8),
+            dir: response, url: Data([1,2,3,4])
+        ])
+        let sync = CardSync(client: EZShareClient(transport: transport))
+        _ = try await sync.sync(to: folder)
+        let local = folder.appendingPathComponent("DATALOG/sample.edf")
+        try Data([1,2,3]).write(to: local, options: .atomic)
+        let repaired = try await sync.sync(to: folder)
+        XCTAssertEqual(repaired.changed, 1)
+        XCTAssertEqual(repaired.skipped, 0)
+        await transport.set(dir, bytes: Data("<pre><a href='/download?file=A:%5CDATALOG%5Csample.edf'>sample.edf</a></pre>".utf8))
+        let legacy = try await sync.sync(to: folder)
+        XCTAssertEqual(legacy.skipped, 0)
+        let callCount3 = await transport.calls(url)
+        XCTAssertEqual(callCount3, 3)
+    }
+
+    func testParsesEzshareTimestampAndRejectsMalformedDate() throws {
+        let good = "<pre>\n2021-11- 6 16:17: 0 7750KB <a href='/download?file=x.edf'>x.edf</a></pre>"
+        XCTAssertNotNil(try DirectoryParser.parse(good, relativeTo: CardAddress.root)[0].stamp)
+        let malformed = "<pre>\n2021-13- 6 16:17: 0 7750KB <a href='/download?file=x.edf'>x.edf</a></pre>"
+        XCTAssertNil(try DirectoryParser.parse(malformed, relativeTo: CardAddress.root)[0].stamp)
+    }
+}

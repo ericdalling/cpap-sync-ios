@@ -16,6 +16,7 @@ struct LabView: View {
     @State private var task: Task<Void, Never>?
     @State private var completed = false
     @State private var parallelDownloads = false
+    @State private var forceRefresh = false
     @State private var exportFolder = false
     @State private var resetConfirmation = false
     private let client = EZShareClient()
@@ -51,14 +52,15 @@ struct LabView: View {
                 Section("Download") {
                     Text("Use one SD card only. Already saved files survive a failed sync.")
                     Toggle("Experimental: 2 parallel downloads", isOn: $parallelDownloads).disabled(task != nil)
-                    Text("Files: \(report.files) · Updated: \(report.changed) · Identical: \(report.unchanged)")
+                    Toggle("Force full refresh", isOn: $forceRefresh).disabled(task != nil)
+                    Text("Files: \(report.files) · Updated: \(report.changed) · Unchanged: \(report.unchanged) · Skipped downloads: \(report.skipped)")
                     Text("Read: \(report.bytes) bytes")
                     if let active = report.activeFile { Text("Last active: \(active)").font(.caption).lineLimit(2) }
                     Button("Sync CPAP data") {
                         completed = false
                         report = SyncReport()
                         start {
-                            report = try await CardSync(client: client).sync(to: backup, options: SyncOptions(concurrentDownloads: parallelDownloads ? 2 : 1)) { update in
+                            report = try await CardSync(client: client).sync(to: backup, options: SyncOptions(concurrentDownloads: parallelDownloads ? 2 : 1, forceFullRefresh: forceRefresh)) { update in
                                 await MainActor.run { report = update }
                             }
                             completed = true

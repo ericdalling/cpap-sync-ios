@@ -4,6 +4,7 @@ public struct SyncReport: Sendable, Equatable {
     public var files = 0
     public var changed = 0
     public var unchanged = 0
+    public var skipped = 0
     public var bytes = 0
     public var activeFile: String?
     public init() {}
@@ -16,16 +17,18 @@ public struct SyncFailure: Error, LocalizedError, Sendable {
 }
 public struct SyncOptions: Sendable {
     public let concurrentDownloads: Int
-    public init(concurrentDownloads: Int = 1) {
+    public let forceFullRefresh: Bool
+    public init(concurrentDownloads: Int = 1, forceFullRefresh: Bool = false) {
         self.concurrentDownloads = min(2, max(1, concurrentDownloads))
+        self.forceFullRefresh = forceFullRefresh
     }
 }
 public struct CardSync: Sendable {
     public let client: EZShareClient
     public init(client: EZShareClient = EZShareClient()) { self.client = client }
 
-    // All files are re-read until the actual firmware's change metadata is validated.
-    // Atomic writes preserve existing complete files after interruption.
+    // Skip only older DATALOG files with stable listing metadata and a verified
+    // local index record. Re-download anything ambiguous. Writes stay atomic.
     public func sync(to root: URL, options: SyncOptions = SyncOptions(), progress: @Sendable (SyncReport) async -> Void = { _ in }) async throws -> SyncReport {
         let fm = FileManager.default
         try fm.createDirectory(at: root, withIntermediateDirectories: true)
@@ -35,6 +38,7 @@ public struct CardSync: Sendable {
         values.isExcludedFromBackup = true
         try root.setResourceValues(values)
         var report = SyncReport()
+        var index = IncrementalIndex.load(for: root)
         var pending: [(URL, URL, Int, String)] = [(CardAddress.root, root, 0, "")]
         var visited = Set<URL>()
         var entriesSeen = 0
@@ -65,7 +69,18 @@ public struct CardSync: Sendable {
                     }
                     pending.append((entry.url, destination, depth + 1, displayPath))
                 } else {
-                    downloadItems.append((entry, destination, displayPath))
+                    // Root, settings and recent records may be rewritten at the same
+                    // size: they must always be fetched and compared.
+                    let stableDatalog = displayPath.uppercased().hasPrefix("DATALOG/")
+                    if stableDatalog && index.shouldSkip(displayPath, stamp: entry.stamp,
+                                                           file: destination, force: options.forceFullRefresh) {
+                        report.files += 1
+                        report.unchanged += 1
+                        report.skipped += 1
+                        await progress(report)
+                    } else {
+                        downloadItems.append((entry, destination, displayPath))
+                    }
                 }
             }
             // Use at most two in-flight downloads per directory. Default is one
@@ -116,6 +131,16 @@ public struct CardSync: Sendable {
                     } catch {
                         group.cancelAll()
                         throw SyncFailure(path: item.2, details: error.localizedDescription)
+                    }
+                    // Commit index only after the bytes are safely present. The
+                    // manifest survives cancellation and allows resuming.
+                    if let stamp = item.0.stamp {
+                        do {
+                            try index.record(item.2, stamp: stamp, file: item.1)
+                            try index.save(for: root)
+                        } catch {
+                            throw SyncFailure(path: item.2, details: "Incremental index error: " + error.localizedDescription)
+                        }
                     }
                     report.files += 1
                     report.bytes += data.count
