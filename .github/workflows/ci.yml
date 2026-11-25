@@ -12,7 +12,9 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   test:
-    runs-on: macos-26
+    # Avoid hosted Apple Silicon runner acquisition failures (queued then
+    # cancelled before first step). Intel macOS 26 also provides Xcode 26.6.
+    runs-on: macos-26-intel
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
