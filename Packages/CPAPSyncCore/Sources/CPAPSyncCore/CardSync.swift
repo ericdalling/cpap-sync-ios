@@ -70,7 +70,7 @@ public struct CardSync: Sendable {
             }
             // Use at most two in-flight downloads per directory. Default is one
             // until ez Share firmware concurrency is validated on real hardware.
-            try await withThrowingTaskGroup(of: (Int, Data).self) { group in
+            try await withThrowingTaskGroup(of: (Int, Result<Data, Error>).self) { group in
                 var index = 0
                 var inFlight = 0
                 func queue() async {
@@ -81,25 +81,26 @@ public struct CardSync: Sendable {
                         let item = downloadItems[n]
                         report.activeFile = item.2
                         await progress(report)
-                        group.addTask { (n, try await client.download(item.0)) }
+                        group.addTask {
+                            do { return (n, .success(try await client.download(item.0))) }
+                            catch { return (n, .failure(error)) }
+                        }
                     }
                 }
                 await queue()
                 while inFlight > 0 {
-                    let result: (Int, Data)
-                    do {
-                        guard let next = try await group.next() else { break }
-                        result = next
-                    } catch is CancellationError {
-                        group.cancelAll()
-                        throw CancellationError()
-                    } catch {
-                        group.cancelAll()
-                        throw SyncFailure(path: report.activeFile ?? "download", details: error.localizedDescription)
-                    }
+                    guard let result = await group.next() else { break }
                     inFlight -= 1
                     let item = downloadItems[result.0]
-                    let data = result.1
+                    let data: Data
+                    switch result.1 {
+                    case .success(let bytes):
+                        data = bytes
+                    case .failure(let error):
+                        group.cancelAll()
+                        if error is CancellationError { throw CancellationError() }
+                        throw SyncFailure(path: item.2, details: error.localizedDescription)
+                    }
                     try Task.checkCancellation()
                     do {
                         if let old = try? Data(contentsOf: item.1), old == data {

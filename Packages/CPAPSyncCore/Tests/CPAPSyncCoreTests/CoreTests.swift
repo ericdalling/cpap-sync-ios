@@ -74,3 +74,66 @@ final class CoreTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: folder.appendingPathComponent("STR.edf")), Data([4, 5]))
     }
 }
+
+private actor RetryFixture: CardTransport {
+    private var attempts = 0
+    private let failPermanently: Bool
+    init(failPermanently: Bool = false) { self.failPermanently = failPermanently }
+    func get(_ url: URL) async throws -> Data {
+        attempts += 1
+        if failPermanently { throw CardError.invalidListing }
+        if attempts < 3 { throw URLError(.timedOut) }
+        return Data([7, 8])
+    }
+    func count() -> Int { attempts }
+}
+
+extension CoreTests {
+    func testRetriesTimedOutRequests() async throws {
+        let transport = RetryFixture()
+        let entry = CardEntry(name: "test.edf", url: URL(string: "http://192.168.4.1/download?file=test.edf")!, isDirectory: false)
+        let actual = try await EZShareClient(transport: transport).download(entry)
+        XCTAssertEqual(actual, Data([7, 8]))
+        let count = await transport.count()
+        XCTAssertEqual(count, 3)
+    }
+
+    func testDoesNotRetryPermanentErrors() async {
+        let transport = RetryFixture(failPermanently: true)
+        let entry = CardEntry(name: "test.edf", url: URL(string: "http://192.168.4.1/download?file=test.edf")!, isDirectory: false)
+        do {
+            _ = try await EZShareClient(transport: transport).download(entry)
+            XCTFail("Expected failure")
+        } catch { }
+        let count = await transport.count()
+        XCTAssertEqual(count, 1)
+    }
+
+    func testInterruptedSyncPreservesSavedFiles() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let responses = [
+            CardAddress.root.absoluteString: Data("<pre><a href='/download?file=first.edf'>first.edf</a><a href='/download?file=missing.edf'>missing.edf</a></pre>".utf8),
+            "http://192.168.4.1/download?file=first.edf": Data([4, 5])
+        ]
+        do {
+            _ = try await CardSync(client: EZShareClient(transport: FixtureTransport(responses: responses))).sync(to: folder)
+            XCTFail("Expected failure")
+        } catch let error as SyncFailure {
+            XCTAssertTrue(error.localizedDescription.contains("missing.edf"))
+        }
+        XCTAssertEqual(try Data(contentsOf: folder.appendingPathComponent("first.edf")), Data([4, 5]))
+    }
+
+    func testTwoDownloadMode() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let client = EZShareClient(transport: FixtureTransport(responses: [
+            CardAddress.root.absoluteString: Data("<pre><a href='/download?file=1.edf'>1.edf</a><a href='/download?file=2.edf'>2.edf</a></pre>".utf8),
+            "http://192.168.4.1/download?file=1.edf": Data([1]),
+            "http://192.168.4.1/download?file=2.edf": Data([2])
+        ]))
+        let report = try await CardSync(client: client).sync(to: folder, options: SyncOptions(concurrentDownloads: 2))
+        XCTAssertEqual(report.files, 2)
+    }
+}
