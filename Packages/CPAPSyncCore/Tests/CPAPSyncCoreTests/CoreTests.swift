@@ -155,10 +155,6 @@ private actor CountingTransport: CardTransport {
 }
 
 extension CoreTests {
-    private func listing(_ size: String = "4B", _ date: String = "2021-11- 6 16:17: 0") -> Data {
-        Data("<pre>\n\(date) \(size) <a href='/dir?dir=A:%5CDATALOG'>DATALOG</a>\n</pre>".utf8)
-    }
-
     func testIncrementalSkipsStableDatalogAndRefreshesChangedMetadata() async throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer {
@@ -180,8 +176,8 @@ extension CoreTests {
         let second = try await sync.sync(to: folder)
         XCTAssertEqual(second.skipped, 1)
         XCTAssertEqual(second.bytes, 0)
-        let callCount1 = await transport.calls(file)
-        XCTAssertEqual(callCount1, 1)
+        let repeatedCalls = await transport.calls(file)
+        XCTAssertEqual(repeatedCalls, 1)
         await transport.set(dir, bytes: Data("<pre>\n2021-11- 7 16:17: 0 4B <a href='/download?file=A:%5CDATALOG%5Csample.edf'>sample.edf</a>\n</pre>".utf8))
         await transport.set(file, bytes: Data([9,8,7,6]))
         let third = try await sync.sync(to: folder)
