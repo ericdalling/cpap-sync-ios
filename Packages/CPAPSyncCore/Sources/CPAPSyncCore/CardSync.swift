@@ -89,7 +89,7 @@ public struct CardSync: Sendable {
                 }
                 await queue()
                 while inFlight > 0 {
-                    guard let result = await group.next() else { break }
+                    guard let result = try await group.next() else { break }
                     inFlight -= 1
                     let item = downloadItems[result.0]
                     let data: Data
