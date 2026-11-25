@@ -33,6 +33,20 @@ final class CoreTests: XCTestCase {
         }
     }
 
+    func testSkipsCardWifiConfiguration() async throws {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let dataURL = "http://192.168.4.1/download?file=A:%5CSTR.edf"
+        let responses = [
+            CardAddress.root.absoluteString: Data("<pre><a href='/download?file=A:%5Cezshare.cfg'>ezshare.cfg</a><a href='/download?file=A:%5CSTR.edf'>STR.edf</a></pre>".utf8),
+            dataURL: Data([1, 2, 3])
+        ]
+        let report = try await CardSync(client: EZShareClient(transport: FixtureTransport(responses: responses))).sync(to: folder)
+        XCTAssertEqual(report.files, 1)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: folder.appendingPathComponent("ezshare.cfg").path))
+        XCTAssertEqual(try Data(contentsOf: folder.appendingPathComponent("STR.edf")), Data([1, 2, 3]))
+    }
+
     func testRecursiveSyncAndRefresh() async throws {
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: folder) }
