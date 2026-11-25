@@ -44,7 +44,7 @@ public struct CardSync: Sendable {
         values.isExcludedFromBackup = true
         try root.setResourceValues(values)
         var report = SyncReport()
-        var index = IncrementalIndex.load(for: root)
+        var incrementalIndex = IncrementalIndex.load(for: root)
         var pending: [(URL, URL, Int, String)] = [(CardAddress.root, root, 0, "")]
         var visited = Set<URL>()
         var entriesSeen = 0
@@ -78,7 +78,7 @@ public struct CardSync: Sendable {
                     // Root, settings and recent records may be rewritten at the same
                     // size: they must always be fetched and compared.
                     let stableDatalog = displayPath.uppercased().hasPrefix("DATALOG/")
-                    if stableDatalog && index.shouldSkip(displayPath, stamp: entry.stamp,
+                    if stableDatalog && incrementalIndex.shouldSkip(displayPath, stamp: entry.stamp,
                                                            file: destination, force: options.forceFullRefresh) {
                         report.files += 1
                         report.unchanged += 1
@@ -142,8 +142,8 @@ public struct CardSync: Sendable {
                     // manifest survives cancellation and allows resuming.
                     if let stamp = item.0.stamp {
                         do {
-                            try index.record(item.2, stamp: stamp, file: item.1)
-                            try index.save(for: root)
+                            try incrementalIndex.record(item.2, stamp: stamp, file: item.1)
+                            try incrementalIndex.save(for: root)
                         } catch {
                             throw SyncFailure(path: item.2, details: "Incremental index error: " + error.localizedDescription)
                         }
