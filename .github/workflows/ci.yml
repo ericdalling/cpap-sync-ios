@@ -39,7 +39,7 @@ jobs:
       - name: Verify iPhone and iPad launch metadata
         run: |
           /usr/libexec/PlistBuddy -c "Print :UILaunchScreen" CPAPSync/GeneratedInfo.plist
-          grep -Eq "TARGETED_DEVICE_FAMILY = 1,2;" CPAPSync.xcodeproj/project.pbxproj
+          xcodebuild -project CPAPSync.xcodeproj -target CPAPSync -configuration Release -showBuildSettings -json | python3 -c 'import json,sys; targets=json.load(sys.stdin); app=next(t for t in targets if t["target"]=="CPAPSync"); assert app["buildSettings"]["TARGETED_DEVICE_FAMILY"] in ("1,2","1 2"), app["buildSettings"]["TARGETED_DEVICE_FAMILY"]'
           /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" CPAPSync/GeneratedInfo.plist | grep -Fq '$(MARKETING_VERSION)'
           /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" CPAPSync/GeneratedInfo.plist | grep -Fq '$(CURRENT_PROJECT_VERSION)'
       - name: Test
