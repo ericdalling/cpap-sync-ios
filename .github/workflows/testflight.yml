@@ -22,7 +22,7 @@ jobs:
        github.event.workflow_run.head_repository.full_name == github.repository) ||
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v'))
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
@@ -36,6 +36,13 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$EXPECTED_SHA"
           git merge-base --is-ancestor HEAD origin/main
+      - name: Verify Xcode and iOS SDK
+        run: |
+          xcodebuild -version
+          xcodebuild -version | grep -Eq '^Xcode 27([.]|$)'
+          sdk="$(xcrun --sdk iphoneos --show-sdk-version)"
+          echo "iOS SDK: $sdk"
+          test "${sdk%%.*}" -ge 27
       - name: Resolve version
         run: bash scripts/resolve-version.sh testflight >> "$GITHUB_ENV"
       - name: Validate release tag
@@ -50,7 +57,7 @@ jobs:
           bash scripts/test-ios.sh
   release:
     needs: verify
-    runs-on: macos-26
+    runs-on: xcode-27
     timeout-minutes: 45
     environment: testflight
     steps:
@@ -59,6 +66,13 @@ jobs:
           ref: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
           persist-credentials: false
           fetch-depth: 0
+      - name: Verify Xcode and iOS SDK
+        run: |
+          xcodebuild -version
+          xcodebuild -version | grep -Eq '^Xcode 27([.]|$)'
+          sdk="$(xcrun --sdk iphoneos --show-sdk-version)"
+          echo "iOS SDK: $sdk"
+          test "${sdk%%.*}" -ge 27
       - name: Resolve version
         run: bash scripts/resolve-version.sh testflight >> "$GITHUB_ENV"
       - name: Validate release tag
