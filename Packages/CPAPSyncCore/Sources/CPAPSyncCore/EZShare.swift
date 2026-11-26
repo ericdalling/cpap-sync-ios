@@ -174,15 +174,53 @@ public enum DirectoryParser {
     }
 }
 
+public actor NetworkDiagnostics {
+    private var durations: [Double] = []
+    private var transfers: [(Double, Int)] = []
+    private var retries = 0
+    private var timeouts = 0
+    private var failures = 0
+    private var backoff = 0.0
+    public init() {}
+    public func reset() {
+        durations = []; transfers = []; retries = 0; timeouts = 0; failures = 0; backoff = 0
+    }
+    public func record(seconds: Double, bytes: Int, failed: Bool, timeout: Bool = false, download: Bool = true) {
+        durations.append(seconds)
+        if failed { failures += 1 }
+        if timeout { timeouts += 1 }
+        let now = ProcessInfo.processInfo.systemUptime
+        transfers.removeAll { now - $0.0 > 300 }
+        if download && !failed { transfers.append((now, bytes)) }
+    }
+    public func retry(seconds: Double) { retries += 1; backoff += seconds }
+    public func summary() -> String {
+        let sorted = durations.sorted()
+        let mean = sorted.isEmpty ? 0 : sorted.reduce(0,+) / Double(sorted.count)
+        let p95 = sorted.isEmpty ? 0 : sorted[max(0, Int(ceil(Double(sorted.count)*0.95))-1)]
+        let now = ProcessInfo.processInfo.systemUptime
+        func rate(_ window: Double) -> Double {
+            Double(transfers.filter { now - $0.0 <= window }.reduce(0) { $0 + $1.1 }) / window / 1000
+        }
+        return String(format: "HTTP attempts: %d, failed: %d, timeouts: %d, retries: %d\nMean: %.3fs, P95: %.3fs, max: %.3fs\nScheduled backoff: %.3fs\nCompleted download bytes/window: %.2f KB/s (60s), %.2f KB/s (300s)\nTTFB / connection reuse: unavailable", sorted.count, failures, timeouts, retries, mean, p95, sorted.last ?? 0, backoff, rate(60), rate(300))
+    }
+}
+
 public struct EZShareClient: Sendable {
+    public let diagnostics = NetworkDiagnostics()
     private let transport: any CardTransport
     public init(transport: any CardTransport = LocalCardTransport()) { self.transport = transport }
     private func request(_ url: URL) async throws -> Data {
         for attempt in 0..<3 {
             try Task.checkCancellation()
-            do { return try await transport.get(url) }
-            catch is CancellationError { throw CancellationError() }
-            catch {
+            let began = ProcessInfo.processInfo.systemUptime
+            do {
+                let data = try await transport.get(url)
+                await diagnostics.record(seconds: ProcessInfo.processInfo.systemUptime - began, bytes: data.count, failed: false, download: url.path == "/download")
+                return data
+            } catch {
+                await diagnostics.record(seconds: ProcessInfo.processInfo.systemUptime - began, bytes: 0, failed: true, timeout: (error as? URLError)?.code == .timedOut)
+                if error is CancellationError { throw CancellationError() }
                 let retryable: Bool
                 if let network = error as? URLError {
                     retryable = [.timedOut, .networkConnectionLost, .cannotConnectToHost,
@@ -193,6 +231,7 @@ public struct EZShareClient: Sendable {
                     retryable = false
                 }
                 guard retryable && attempt < 2 else { throw error }
+                await diagnostics.retry(seconds: Double(250 * (1 << attempt)) / 1000)
                 try await Task.sleep(nanoseconds: UInt64(250 * (1 << attempt)) * 1_000_000)
             }
         }
