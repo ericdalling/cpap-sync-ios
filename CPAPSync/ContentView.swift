@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import UniformTypeIdentifiers
 import CPAPSyncCore
 
@@ -11,6 +12,10 @@ struct ContentView: View {
     @State private var resetConfirmation = false
     @State private var completed = false
     @State private var forceRefresh = false
+    @State private var networkSummary = "No measurements yet"
+    @State private var benchmarkSummary = "Not run"
+    @State private var syncStarted: Double?
+    @State private var syncClock: Double = 0
 
     private let client = EZShareClient()
 
@@ -54,6 +59,9 @@ struct ContentView: View {
                         completed = false
                         report = SyncReport()
                         start {
+                            await client.diagnostics.reset()
+                            syncStarted = ProcessInfo.processInfo.systemUptime
+                            defer { syncStarted = nil }
                             report = try await CardSync(client: client).sync(to: backup, options: SyncOptions(forceFullRefresh: forceRefresh)) { update in
                                 await MainActor.run { report = update }
                             }
@@ -74,6 +82,60 @@ struct ContentView: View {
                     .disabled(operation != nil)
                 }
 
+                Section("Sync performance") {
+                    Text(report.diagnosticSummary + "\n" + networkSummary)
+                        .font(.system(.footnote, design: .monospaced))
+                        .textSelection(.enabled)
+                    if syncStarted != nil { Text("Live elapsed: \(Int(syncClock)) seconds") }
+                    Button("Copy diagnostic report") {
+                        UIPasteboard.general.string = report.diagnosticSummary + "\n" + networkSummary + "\nBenchmark: " + benchmarkSummary
+                    }
+                }
+
+                Section("Read-only network benchmark") {
+                    Text("Samples up to four historical or current data files; discards downloaded bytes and does not change the backup.")
+                        .font(.footnote)
+                    Text(benchmarkSummary).font(.footnote)
+                    Button("Run network benchmark") {
+                        start {
+                            let probe = EZShareClient()
+                            let began = ProcessInfo.processInfo.systemUptime
+                            var pending = [CardAddress.root]
+                            var seen = Set<URL>()
+                            var samples: [CardEntry] = []
+                            while let directory = pending.popLast(), seen.count < 20, samples.count < 4 {
+                                try Task.checkCancellation()
+                                guard seen.insert(directory).inserted else { continue }
+                                for entry in try await probe.list(directory) {
+                                    if entry.isDirectory { pending.append(entry.url) }
+                                    else if directory != CardAddress.root && entry.name.lowercased().hasSuffix(".edf") && samples.count < 4 { samples.append(entry) }
+                                }
+                            }
+                            let discovery = ProcessInfo.processInfo.systemUptime - began
+                            guard !samples.isEmpty else { benchmarkSummary = "No eligible sample files found"; return }
+                            var lines = [String(format: "Discovery: %.2fs", discovery)]
+                            for width in [1, 2, 4] {
+                                let start = ProcessInfo.processInfo.systemUptime
+                                var bytes = 0
+                                for offset in stride(from: 0, to: samples.count, by: width) {
+                                    let batch = Array(samples[offset..<min(offset + width, samples.count)])
+                                    bytes += try await withThrowingTaskGroup(of: Int.self) { group in
+                                        for entry in batch { group.addTask { try await probe.download(entry).count } }
+                                        var total = 0
+                                        for try await count in group { total += count }
+                                        return total
+                                    }
+                                }
+                                let seconds = ProcessInfo.processInfo.systemUptime - start
+                                lines.append(String(format: "%d concurrent: %d bytes, %.2fs, %.2f KB/s", width, bytes, seconds, Double(bytes)/max(seconds, 0.001)/1000))
+                                benchmarkSummary = lines.joined(separator: "\n")
+                            }
+                            benchmarkSummary += "\n" + (await probe.diagnostics.summary())
+                            status = "Benchmark complete."
+                        }
+                    }.disabled(operation != nil)
+                }
+
                 Section("Export to SleepHQ") {
                     Text("Export a folder to On My iPhone, reconnect to your regular Wi-Fi, then choose the exported data in SleepHQ's manual upload. Upload compatibility must still be validated.")
                         .font(.footnote)
@@ -85,6 +147,13 @@ struct ContentView: View {
                     Text(AppVersion.current.display)
                         .font(.footnote).foregroundStyle(.secondary)
                         .accessibilityIdentifier("appVersion")
+                }
+            }
+            .task {
+                while !Task.isCancelled {
+                    networkSummary = await client.diagnostics.summary()
+                    if let started = syncStarted { syncClock = ProcessInfo.processInfo.systemUptime - started }
+                    try? await Task.sleep(for: .seconds(1))
                 }
             }
             .navigationTitle("CPAP Sync")

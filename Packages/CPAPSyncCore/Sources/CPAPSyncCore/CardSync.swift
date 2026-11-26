@@ -7,6 +7,20 @@ public struct SyncReport: Sendable, Equatable {
     public var skipped = 0
     public var bytes = 0
     public var activeFile: String?
+    public var elapsed: TimeInterval = 0
+    public var discoverySeconds: TimeInterval = 0
+    public var downloadSeconds: TimeInterval = 0
+    public var localSeconds: TimeInterval = 0
+    public var indexSeconds: TimeInterval = 0
+    public var directories = 0
+    public var metadataPresent = 0
+    public var metadataMissing = 0
+    public var slowestDownload: TimeInterval = 0
+    public var downloaded: Int { files - skipped }
+    public var effectiveKBps: Double { elapsed > 0 ? Double(bytes) / elapsed / 1000 : 0 }
+    public var diagnosticSummary: String {
+        "Files: \(files), downloaded: \(downloaded), skipped: \(skipped)\nBytes: \(bytes)\nElapsed: \(elapsed)s, effective KB/s: \(effectiveKBps)\nDirectories: \(directories), discovery: \(discoverySeconds)s\nDownload request time (including retries): \(downloadSeconds)s, slowest: \(slowestDownload)s\nLocal processing: \(localSeconds)s, index writes: \(indexSeconds)s\nMetadata present: \(metadataPresent), absent: \(metadataMissing)"
+    }
     public init() {}
 }
 
@@ -44,6 +58,8 @@ public struct CardSync: Sendable {
         values.isExcludedFromBackup = true
         try root.setResourceValues(values)
         var report = SyncReport()
+        let started = ProcessInfo.processInfo.systemUptime
+        func now() -> TimeInterval { ProcessInfo.processInfo.systemUptime }
         var incrementalIndex = IncrementalIndex.load(for: root)
         var pending: [(URL, URL, Int, String)] = [(CardAddress.root, root, 0, "")]
         var visited = Set<URL>()
@@ -52,9 +68,15 @@ public struct CardSync: Sendable {
             try Task.checkCancellation()
             guard depth <= 32, visited.insert(remote).inserted, visited.count <= 10_000 else { throw CardError.limitExceeded }
             let entries: [CardEntry]
+            let listingStart = now()
             do { entries = try await client.list(remote) }
             catch is CancellationError { throw CancellationError() }
             catch { throw SyncFailure(path: relative.isEmpty ? "root" : relative, details: error.localizedDescription) }
+            report.discoverySeconds += now() - listingStart
+            report.directories += 1
+            report.elapsed = now() - started
+            report.elapsed = now() - started
+                    await progress(report)
             var downloadItems: [(CardEntry, URL, String)] = []
             for entry in entries {
                 try Task.checkCancellation()
@@ -77,13 +99,15 @@ public struct CardSync: Sendable {
                 } else {
                     // Root, settings and recent records may be rewritten at the same
                     // size: they must always be fetched and compared.
+                    if entry.stamp == nil { report.metadataMissing += 1 } else { report.metadataPresent += 1 }
                     let stableDatalog = displayPath.uppercased().hasPrefix("DATALOG/")
                     if stableDatalog && incrementalIndex.shouldSkip(displayPath, stamp: entry.stamp,
                                                            file: destination, force: options.forceFullRefresh) {
                         report.files += 1
                         report.unchanged += 1
                         report.skipped += 1
-                        await progress(report)
+                        report.elapsed = now() - started
+                    await progress(report)
                     } else {
                         downloadItems.append((entry, destination, displayPath))
                     }
@@ -91,7 +115,7 @@ public struct CardSync: Sendable {
             }
             // Use at most two in-flight downloads per directory. Default is one
             // until ez Share firmware concurrency is validated on real hardware.
-            try await withThrowingTaskGroup(of: (Int, Result<Data, Error>).self) { group in
+            try await withThrowingTaskGroup(of: (Int, Result<Data, Error>, TimeInterval).self) { group in
                 var index = 0
                 var inFlight = 0
                 func queue() async {
@@ -101,10 +125,14 @@ public struct CardSync: Sendable {
                         inFlight += 1
                         let item = downloadItems[n]
                         report.activeFile = item.2
-                        await progress(report)
+                        report.elapsed = now() - started
+                    await progress(report)
                         group.addTask {
-                            do { return (n, .success(try await client.download(item.0))) }
-                            catch { return (n, .failure(error)) }
+                            let began = ProcessInfo.processInfo.systemUptime
+                            do {
+                                let data = try await client.download(item.0)
+                                return (n, .success(data), ProcessInfo.processInfo.systemUptime - began)
+                            } catch { return (n, .failure(error), ProcessInfo.processInfo.systemUptime - began) }
                         }
                     }
                 }
@@ -113,6 +141,8 @@ public struct CardSync: Sendable {
                     guard let result = try await group.next() else { break }
                     inFlight -= 1
                     let item = downloadItems[result.0]
+                    report.downloadSeconds += result.2
+                    report.slowestDownload = max(report.slowestDownload, result.2)
                     let data: Data
                     switch result.1 {
                     case .success(let bytes):
@@ -123,6 +153,7 @@ public struct CardSync: Sendable {
                         throw SyncFailure(path: item.2, details: error.localizedDescription)
                     }
                     try Task.checkCancellation()
+                    let localStart = now()
                     do {
                         if let old = try? Data(contentsOf: item.1), old == data {
                             report.unchanged += 1
@@ -138,12 +169,15 @@ public struct CardSync: Sendable {
                         group.cancelAll()
                         throw SyncFailure(path: item.2, details: error.localizedDescription)
                     }
+                    report.localSeconds += now() - localStart
                     // Commit index only after the bytes are safely present. The
                     // manifest survives cancellation and allows resuming.
                     if let stamp = item.0.stamp {
+                        let indexStart = now()
                         do {
                             try incrementalIndex.record(item.2, stamp: stamp, file: item.1)
                             try incrementalIndex.save(for: root)
+                            report.indexSeconds += now() - indexStart
                         } catch {
                             throw SyncFailure(path: item.2, details: "Incremental index error: " + error.localizedDescription)
                         }
@@ -151,13 +185,15 @@ public struct CardSync: Sendable {
                     report.files += 1
                     report.bytes += data.count
                     report.activeFile = item.2
+                    report.elapsed = now() - started
                     await progress(report)
                     await queue()
                 }
             }
         }
         report.activeFile = nil
-        await progress(report)
+        report.elapsed = now() - started
+                    await progress(report)
         return report
     }
 
