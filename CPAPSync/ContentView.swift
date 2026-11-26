@@ -84,9 +84,9 @@ struct ContentView: View {
 
                 Section("Sync performance") {
                     Text(report.diagnosticSummary + "\n" + networkSummary)
-                    if syncStarted != nil { Text("Live elapsed: \(Int(syncClock)) seconds") }
                         .font(.system(.footnote, design: .monospaced))
                         .textSelection(.enabled)
+                    if syncStarted != nil { Text("Live elapsed: \(Int(syncClock)) seconds") }
                     Button("Copy diagnostic report") {
                         UIPasteboard.general.string = report.diagnosticSummary + "\n" + networkSummary + "\nBenchmark: " + benchmarkSummary
                     }
