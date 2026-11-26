@@ -12,15 +12,21 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   test:
-    # Stable general-availability macOS runner. TestFlight signing retains macos-26.
-    # macos-26 has been cancelled without any test logs after prolonged queueing.
-    runs-on: macos-15
+    # Dedicated Xcode major-version image for SDK consistency.
+    runs-on: xcode-27
     timeout-minutes: 35
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
           fetch-depth: 0
+      - name: Verify Xcode and iOS SDK
+        run: |
+          xcodebuild -version
+          xcodebuild -version | grep -Eq '^Xcode 27([.]|$)'
+          sdk="$(xcrun --sdk iphoneos --show-sdk-version)"
+          echo "iOS SDK: $sdk"
+          test "${sdk%%.*}" -ge 27
       - name: Resolve version
         run: bash scripts/resolve-version.sh preview >> "$GITHUB_ENV"
       - name: Validate shell scripts
