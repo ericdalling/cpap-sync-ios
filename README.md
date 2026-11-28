@@ -26,3 +26,11 @@ See [automated main build releases](docs/main-build-releases.md) for assets, tag
 
 ## iPad lab
 Download the `.swiftpm.zip` asset from a successful main release, extract in Files and open `CPAPSyncLab.swiftpm` in Swift Playgrounds. Connect manually to ez Share outside therapy, allow local network access, list root, sync, then export into On My iPad and reconnect to home Wi-Fi for manual SleepHQ upload. See [lab guide](docs/ipad-lab.md).
+
+## Contributing
+
+Community contributions are welcome, especially device compatibility, wireless SD card protocols, sync reliability and privacy-preserving integrations. See [CONTRIBUTING.md](CONTRIBUTING.md) and [GitHub Issues](https://github.com/ericdalling/cpap-sync-ios/issues).
+
+## License
+
+Licensed under the [MIT License](LICENSE). Third-party materials retain their respective licenses. This independent project is not affiliated with CPAP device manufacturers, ez Share or SleepHQ. It is a data transfer utility, not medical advice or a therapy-control tool.
